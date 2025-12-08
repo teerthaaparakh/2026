@@ -208,3 +208,31 @@ This is the term that makes RL different from Supervised Learning. $\text{Cov}(g
 The Impact: When $T$ is large, we have many highly correlated steps in our batch, leading to a large positive covariance term. This effectively lowers the "effective sample size" of our batch. Even if $NT$ is large, if $T$ is too long, the covariance term can keep the overall $\text{Var}(G_B)$ high.
 
 The take-away is clear: To aggressively reduce variance, we must minimize the covariance term. This requires breaking the temporal correlation, which means we need more independent starting points—that is, increasing the number of parallel environments, $\mathbf{N}$.
+<style>
+.crop {
+  width: 120px;      /* final visible width  */
+  height: 120px;     /* final visible height */
+  overflow: hidden; 
+}
+
+.crop img {
+  width: 200px;      /* scale image */
+  height: auto;
+  margin-left: -40px; /* shift crop window */
+  margin-top: -20px;
+}
+</style>
+
+<div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/4vs32/update_500_batch0_vs_batch0.png"></div>
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/4vs32/update_500_batch0_vs_batch1.png"></div>
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/4vs32/update_500_batch0_vs_batch2.png"></div>
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/4vs32/update_500_batch0_vs_batch3.png"></div>
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/4vs32/update_500_batch0_vs_batch4.png"></div>
+
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/32vs4/update_500_batch0_vs_batch0.png"></div>
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/32vs4/update_500_batch0_vs_batch1.png"></div>
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/32vs4/update_500_batch0_vs_batch2.png"></div>
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/32vs4/update_500_batch0_vs_batch3.png"></div>
+  <div class="crop"><img src="assets/img/2026-04-27-ppo-batch-size/32vs4/update_500_batch0_vs_batch4.png"></div>
+</div>
