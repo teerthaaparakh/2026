@@ -184,15 +184,19 @@ Overall, these noise sources appear in the gradient estimator in two ways:
   </div> 
 </div>
 
-<div align="center" style="display:flex; justify-content:center; gap:16px;"> 
-  <div style="flex:1; max-width:400px;"> <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/batch_gradient.png" alt="PPO bias-variance and policy update illustration" style="width:85%; border-radius:6px;"/> 
+<div align="center" style="display:flex; justify-content:center; gap:16px;">
+  <div style="flex:1; max-width:400px;">
+    <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/batch_gradient.png"
+         alt="PPO bias-variance and policy update illustration"
+         style="width:85%; border-radius:6px;"/>
+
     <div class="explain-box" style="max-width:700px; margin-top:8px;">
       <strong>Figure</strong>
       Bias and variance: The estimated gradient <i>Ĝ</i> differs from the true gradient
       <i>G<sub>T</sub></i> due to sampling variability (variance) and systematic
       estimation error (bias). Both influence how the policy moves from iteration
       <i>i</i> to <i>i+1</i>.
-    </div> 
+    </div>
   </div>
 </div>
 
