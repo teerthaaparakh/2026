@@ -64,8 +64,7 @@ Does it matter if we reach a batch size of 2,048 by running 2 environments for 1
 
 Recent work has shown that data collection strategy is not a trivial detail. Multiple studies—including <d-cite key="mayor2025the"></d-cite> and <d-cite key="sapg2024"></d-cite>—highlight that how we distribute experience across environments and rollout lengths can meaningfully influence the stability and effectiveness of on-policy RL methods like PPO. As simulation becomes faster and large-scale parallelism more accessible, understanding these choices is becoming increasingly important.
 
-In this post, we'll dig into why the structure of the batch matters at all. In particular, we'll look at how increasing $N$ and increasing $T$ affect the bias and variance of PPO’s gradient estimates, theoretically and empirically.
-<!-- We’ll keep the heavy equations to a minimum and rely on illustrations to build intuition for what’s happening under the hood. -->
+In this post, we'll dig into why the structure of the batch matters at all. In particular, we'll look at how increasing $N$ and increasing $T$ affect the bias and variance of PPO’s gradient estimates, theoretically and empirically. Code for the empirical analysis is provided [here](https://drive.google.com/drive/folders/1z8w_T0Ree9XwfBjK6yvL3zk4SlJZ_flG?usp=sharing)
 
 ### Clarifying Terminology: Batch vs. Mini-Batch
 When reading PPO implementations across different libraries, you may notice that the term batch size is used in slightly different ways. To keep things consistent in this post, we’ll use the following terminology as is used in the original PPO paper <d-cite key="schulman2017ppo"></d-cite>:
@@ -84,48 +83,7 @@ As noted by <d-cite key="shengyi2022the37implementation"></d-cite>:
 
 Being precise about terminology makes it clear that when we adjust hyperparameters like $N$ and $T$, we’re modifying the amount of experience collected instead of just changing how much data goes into each optimization step (which is determined by the size of each mini-batch).
 
-<!-- ### Background: MDP Setup and PPO Overview
 
-Before discussing how PPO constructs its batches, we briefly summarize the reinforcement-learning setup. We consider an agent interacting with an environment modeled as a Markov Decision Process (MDP), defined by the state space ($S$), action space ($A$), transition dynamics ($P$), reward function ($r$), and discount factor ($\gamma$). At each step, the agent samples an action from its policy $a_t \sim \pi_\theta(a \mid s_t)$, receives a reward, and transitions to a new state. The goal is to find $\theta$ to maximize expected discounted return: $$J(\theta) = \mathbb{E}_{\pi_\theta}\left[\sum_{t=0}^{\infty} \gamma^t r_t\right]$$. PPO is an on-policy algorithm that iteratively improves the policy using new data collected from the current version of $\pi_\theta$.
-
-PPO (High-level Pseudocode):
-```
-Initialize policy πθ and value function Vϕ
-
-repeat:
-    # --- Data Collection ---
-    For each of N environments:
-        Rollout T steps using πθ
-        Store (s, a, r, logπθ(a|s), Vϕ(s)) in the rollout buffer
-
-    Compute advantages Â using GAE or Monte Carlo returns
-
-    # --- Policy Update ---
-    For K epochs:
-        Shuffle the rollout buffer
-        For each mini-batch M:
-            Compute ratio:      r = πθ(a|s) / old_logπθ(a|s)
-            Compute clipped objective:
-                Lclip = min(r Â, clip(r, 1-ε, 1+ε) Â)
-            Update policy parameters θ via gradient ascent on Lclip
-            Update value function parameters ϕ via regression on returns
-
-until convergence
-``` -->
-<!-- 
-### Data Distribution
-
-In reinforcement learning, a trajectory $\tau = (s_0,a_0,s_1,a_1,\dots,s_T)$ is generated jointly by the policy and environment dynamics. Its probability under policy $\pi_\theta$ and transition matrix $P$ is:
-
-$$
-P(\tau\mid \pi_\theta) = p(s_0)\, \prod_{t=0}^{T-1} \pi_\theta(a_t\mid s_t)\, P(s_{t+1}\mid s_t,a_t).
-$$
-
-As the policy updates online, this trajectory distribution shifts between updates. PPO optimizes expected return using samples from the current distribution; near convergence, updates become small and the distribution stabilizes.
-
-Our focus here is not convergence, but how structuring a fixed total batch $NT$ (many short vs. few long rollouts) influences the variance of gradient estimates. 
-
--->
 ### Background - PPO Gradient Computation 
 
 Before diving into bias and variance, let's write down the gradient PPO computes during policy updates. Ignoring value and entropy terms, the per-sample PPO objective is:
@@ -152,7 +110,7 @@ The clipping term prevents the update from moving too far from the behavior poli
 
 ### Bias and Variance Due to Batch Size
 
-<div style="border-left: 4px solid #335c67; padding: 0.5em 1em; background: #fff3b0b5;">
+<div style="border-left: 4px solid #335c67; padding: 0.5em 1em; background: #d7cade94;">
 <strong>Note:</strong><br>
 In this section, we assume that the gradient is computed using the <strong>full batch</strong> of collected data. This allows us to isolate and analyze the inherent sources of bias and variance that arise purely from the sampled batch itself.
 <br>
@@ -164,7 +122,7 @@ As mentioned in previous section, PPO uses <strong>mini-batch</strong> stochasti
 
 If we assume that the gradient is computed using the <strong>full batch</strong> of collected data, we can isolate and analyze the inherent sources of bias and variance that arise purely from the sampled batch itself. Under this assumption, the gradient estimator takes the same form as the standard (vanilla) policy gradient:
 
-<div style="border: 1px solid #4a79bc01; padding: 0.2em 0.3em; border-radius: 4px; background: #f6f2f8ff;">
+<div style="border: 1px solid #4a79bc01; padding: 0.2em 0.3em; border-radius: 4px; background: #b1d5bbac;">
 $$
 G_B = - \frac{1}{N T} \sum_{(s_t, a_t) \in \mathcal{D}}
 A^{\theta_{\text{old}}}(s_t, a_t)\,
@@ -228,7 +186,7 @@ Overall, these noise sources appear in the gradient estimator in two ways:
 
 <div align="center" style="display:flex; justify-content:center; gap:16px;"> 
   <div style="flex:1; max-width:400px;"> <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/batch_gradient.png" alt="PPO bias-variance and policy update illustration" style="width:85%; border-radius:6px;"/> 
-    <div class="explain-box" style="margin-top:8px;">
+    <div class="explain-box" style="max-width:700px; margin-top:8px;">
       <strong>Figure</strong>
       Bias and variance: The estimated gradient <i>Ĝ</i> differs from the true gradient
       <i>G<sub>T</sub></i> due to sampling variability (variance) and systematic
@@ -239,7 +197,6 @@ Overall, these noise sources appear in the gradient estimator in two ways:
 </div>
 
 
-
 #### <span style="color:#2ca6a4;">▶</span> Effect of Batch Size on Variance
 
 The variance of a mean is critical because it tells us how noisy $G_B$ is. High variance means we can't trust the update.
@@ -248,133 +205,113 @@ The total variance of our gradient estimate $G_B$ can be mathematically decompos
 
 $$\text{Var}(G_B) = \text{Var}\Bigg(\frac{1}{N T} \sum_i g_i \Bigg) = \color{blue}{\underbrace{\frac{1}{(N T)^2} \sum_i \text{Var}(g_i)}_{\text{Term 1: Individual Variance}}} + \color{brown}{\underbrace{\frac{1}{(N T)^2} \sum_{i \neq j} \text{Cov}(g_i, g_j)}_{\text{Term 2: Covariance (Correlation)}}}$$
 
-<!-- This decomposition holds the key to the $N$ vs. $T$ trade-off:
-
-- $\color{blue}{\text{Term 1: Individual Variance}}$
-
-This is the noise coming from each step $g_i$. Due to noise in advantage $ A^{\theta_{\text{old}}}(s_t, a_t)$ estimation each gradient $g_i$ is also noisy. Since the sum is divided by $(NT)^2$, this term shrinks rapidly as the Total Batch Size ($NT$) increases. If every sample were independent, this is all we would have to worry about. 
-
-- $\color{brown}{\text{Term 2: Covariance (The Correlation Problem)}}$
-
-This is the term that makes RL different from Supervised Learning. $\text{Cov}(g_i, g_j)$ is not zero because $g_i$ and $g_{i+1}$ come from consecutive steps in the same environment. Consecutive states are highly related, so the policy gradients derived from them are also highly correlated.
-
-The Impact: When $T$ is large, we have many highly correlated steps in our batch, leading to a large positive covariance term. This effectively lowers the "effective sample size" of our batch. Even if $NT$ is large, if $T$ is too long, the covariance term can keep the overall $\text{Var}(G_B)$ high this increses the sampling noise because effective sample size has reduced. Also if $T$ is large, then the individual variance term is also high because for long horizon the advanateg estimation has high variance, the role of gae-lambda in advantage estimation is dicussed later. But greater the rollout length, higher the variance of this term.
-
-When $T$ is small, the advantage estomation does not have variance and also the effective sample size is not muche reduced as compared to the case when we had long horizon.
-
-The take-away: To aggressively reduce variance, we must minimize the covariance term. This requires breaking the temporal correlation, which means we need more independent starting points—that is, increasing the number of parallel environments, $\mathbf{N}$. -->
-
 
 This decomposition connects directly to the noise sources discussed earlier and holds the key to the $N$ vs. $T$ trade-off:
 
 - $\color{blue}{\text{Term 1: Individual Variance}}$
 
   This term reflects the variability of individual gradient contributions.
-  In practice, this variability appears as noise in the advantage estimates,
-  since each $g_i$ is scaled by a noisy advantage value. Because this term scales
-  with $1/(NT)^2$, it decreases rapidly as the batch size grows.  
-  If every sample were independent, this would be the only variance term we would need to consider.
+  In practice, this variability arises from both the stochastic policy $\pi_\theta(a_t \mid s_t)$ as well as noise in the advantage estimates,
+  since each $g_i$ is scaled by a noisy advantage value. Importantly, higher individual variance does not necessarily translate into higher variance of the batch-averaged gradient, as gradient cancellation effects and covariance between samples also play a crucial role.
 
 - $\color{brown}{\text{Term 2: Covariance (The Correlation Problem)}}$
 
-  This is the term that makes RL different from supervised learning. The covariance $\mathrm{Cov}(g_i, g_j)$ is not zero because $g_i$ and $g_{i+1}$ come from consecutive steps in the same environment. Consecutive states are highly related, so the policy gradients computed from them are also highly correlated.
+  This is the term that makes RL different from supervised learning. The covariance $\mathrm{Cov}(g_i, g_j)$ need not be zero because $g_i$ and $g_{j}$ may originate from the same episode. Since states within a single episode are temporally correlated, the policy gradients computed from those states are also correlated.
 
 **Impact:**  
-When $T$ is **large**, the batch contains many highly correlated steps, leading to a large positive covariance term. This effectively reduces the *effective sample size* of the batch. This $\color{brown}{\text{increases the sampling noise}}$ because the effective sample size has been reduced. Therefore, a long horizon $T$ can keep $\mathrm{Var}(G_B)$ high. In addition, when $T$ is large, the $\color{blue}{\text{individual variance term also increases}}$, since advantage estimation has high variance over long horizons. (The role of $\lambda$ in GAE will be discussed later.)
+When $T$ is **large**, the batch contains many highly correlated steps, leading to either large positive or large negative covariance term. This effectively reduces the *effective sample size* of the batch. This $\color{brown}{\text{increases the sampling noise}}$ because the effective sample size has been reduced. Therefore, a long horizon $T$ can keep $\mathrm{Var}(G_B)$ high. In addition, when $T$ is large, the $\color{blue}{\text{individual variance term also increases}}$, since advantage estimation has high variance over long horizons. (The role of $\lambda$ in GAE will be discussed later.)
 
-When $T$ is small, advantage estimates have lower variance, and the effective sample size is not reduced as severely compared to the long-horizon case, therefore the total variance in the gradient estimate is much lower.
+When $T$ is small, advantage estimates have lower variance, and the effective sample size is less severely reduced than in the long-horizon case, since fewer temporally correlated states are included. Consequently, the overall variance of the gradient estimator is much lower.
 
 **Take-away:**  
 To aggressively reduce variance, we must minimize the covariance term. This requires breaking temporal correlations, which means collecting more independent trajectories—that is, increasing the number of parallel environments, $\mathbf{N}$.
 
-**Some FrozenLake-v1 Environment Experiments:**  
-To investigate whether policy gradients are correlated along a trajectory, we use the 8×8 Slippery FrozenLake-v1 environment. PPO is trained with
+**Some Pendulum-v1 Environment Experiments:**  
+To investigate whether policy gradients are correlated along a trajectory, we use the Pendulum-v1 gym environment. PPO is trained with
 <code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">num_envs = 4</code> and
-<code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">num_steps = 32</code>,
+<code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">num_steps = 256</code>,
 which produces a total batch size of
-<code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">batch_size = 4 × 32 = 128</code> samples per update.
+<code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">batch_size = 4 × 256 = 1024</code> samples per update.
 
-Unlike a fixed-horizon setting, each trajectory here spans from the episode start until termination—either reaching the goal or falling into a hole. Thus, trajectory lengths vary depending on when the episode ends.
+In the pendulum environment, episodes do not terminate due to task completion or failure; instead, they are truncated after a fixed horizon of 200 time steps <d-cite key="towers2024gymnasium"></d-cite>. Consequently, all trajectories have a fixed length of 200 steps.
 
-To measure correlation within a trajectory, we extract one full episode trajectory at a given update during training. For that trajectory, we compute:
-- The mean gradient is defined as:
 
-  $$
-  \bar{g} = \frac{1}{L} \sum_{t=1}^{L} g_t,
-  $$
+To quantify the correlation between gradients computed from two data points, let us use the cosine similarity between gradients $g_i$ and $g_j$, defined as:
+$$
+  \cos(g_i, g_j)
+  = \frac{g_i \cdot g_j}
+        {\lVert g_i \rVert \, \lVert g_j \rVert }.
+$$
 
-  where \(L\) is the episode length (not necessarily 32).
+At a certain training update, we analyze gradient correlation at two levels:
+For a particular step in training, we compute following:
+- **Within-trajectory correlation**: cosine similarity between gradients $g_t$ and $g_{t+k}$ sampled from the same trajectory at temporal lag $k$.
+- **Across-trajectory correlation:** cosine similarity between gradients sampled from two different trajectories, each selected at random.
+For within trajectory cosine similarity we test it for different values of lag k.
 
-- The cosine similarity between each per-step gradient \(g_t\) and the trajectory mean \(\bar{g}\) is:
+Gradients within the same trajectory are expected to be more strongly correlated, while gradients sampled across trajectories provide a baseline that serves as approximately independent samples.
 
-  $$
-  \cos(g_t, \bar{g})
-  = \frac{g_t \cdot \bar{g}}
-        {\lVert g_t \rVert \, \lVert \bar{g} \rVert }.
-  $$
+The below figure compares the cosine similarity of gradients within a trajectory to that of gradients across different trajectories at two different points during training.
+<div align="center">
 
-  If gradients along a trajectory are correlated, then
-  $\cos(g_t, \bar{g})$ will remain high across steps.
+  <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/gradient_similarity_399360.png"
+       alt="gradient similarity distribution for step# 399360"
+       style="width:100%; max-width:700px;"/>
 
-<!-- <div align="center" style="display:flex; justify-content:center; gap:16px;">
-
-  <div style="flex:1; max-width:650px;">
-    <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/traj_cos_update150_batch1_traj1.png"
-         alt="Subplot A"
-         style="width:100%; border-radius:6px;"/>
-    <div class="explain-box" style="margin-top:8px;">
-      <strong>(a)</strong> The x-axis is the step number for a aprticualr trajectory and ya-xis is cosine similiaty of that trajcteory data points with the trajectory mean for update number 150
-    </div>
+  <div class="explain-box" style="max-width:700px; margin-top:12px;">
+    <strong>Figure:</strong> Comparison of within-trajectory and across-trajectory gradient cosine similarity at global step 399360 for lag values \(k = 1, 3, 5, 7\).
   </div>
 
-  <div style="flex:1; max-width:650px;">
-    <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/traj_cos_update250_batch2_traj3.png"
-         alt="Subplot B"
-         style="width:100%; border-radius:6px;"/>
-    <div class="explain-box" style="margin-top:8px;">
-      <strong>(b)</strong> The x-axis is the step number for a aprticualr trajectory and ya-xis is cosine similiaty of that trajcteory data points with the trajectory mean for update number 250.
-    </div>
-  </div>
-
-</div> -->
-
-<div align="center" style="display:flex; justify-content:center; gap:16px;"> 
-  <div style="flex:1; max-width:650px;"> <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/traj_cos_update150_batch1_traj1.png" alt="Subplot A" style="width:105%; border-radius:6px;"/> 
-    <!-- <div class="explain-box" style="margin-top:8px;"> <strong>(a)</strong> Cosine similarity between each step’s gradient and the trajectory’s mean gradient at update 150. Higher values indicate stronger within-trajectory correlation. 
-    </div>  -->
-  </div> 
-  <div style="flex:1; max-width:650px;"> <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/traj_cos_update250_batch2_traj3.png" alt="Subplot B" style="width:105%; border-radius:6px;"/> 
-    <!-- <div class="explain-box" style="margin-top:8px;"> <strong>(b)</strong> Cosine similarity for a different trajectory at update 250, again showing pronounced correlation gradients of a trajectory. 
-    </div>  -->
-  </div> 
 </div>
-<div class="explain-box" style="max-width:900px; margin:1rem auto;">
-  <strong>Figure:</strong> Cosine similarity between per-step gradients and the
-  trajectory’s mean gradient for two different training instances. These figures illustrate strong within-trajectory correlation, but this pattern may not necessarily appear uniformly across all stages of training.
+
+<div style="height:3rem;"></div>
+
+
+<div align="center">
+
+  <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/gradient_similarity_450560.png"
+       alt="gradient similarity distribution for step# 450560"
+       style="width:100%; max-width:700px;"/>
+
+  <div class="explain-box" style="max-width:700px; margin-top:12px;">
+    <strong>Figure:</strong> Comparison of within-trajectory and across-trajectory gradient cosine similarity at global step 450560 for lag values \(k = 1, 5, 10, 40\).
+  </div>
+
 </div>
 
 
-The strong correlation we observed within a trajectory suggests that <code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">num_steps</code> play a significant role in gradient variance. To study this effect more systematically, we compare two PPO settings: `num_envs = 4`, `num_steps = 32` (long trajectories) and `num_envs = 32`, `num_steps = 4` (short trajectories).
-<!-- <code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">num_envs = 4, num_steps = 32</code> (long trajectories) and 
-<code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">num_envs = 32, num_steps = 4</code> (short trajectories).   -->
+The strong correlation we observed within a trajectory suggests that <code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">num_steps</code> play a significant role in gradient variance. To study this effect more systematically, let us analyze two settings: `num_envs = 4`, `num_steps = 256` (long trajectories) and `num_envs = 16`, `num_steps = 64` (short trajectories). Let us focus on training step 450560 now, as the correlation effects remain visible even at large lags (i.e. $k$=40).
 
-For each setting, we randomly sample five batches from the rollout buffer (`batch0` … `batch4`).  
-From each batch, we compute the **mean gradient vector**, and then measure how the per-sample gradients of `batch0` align with the mean gradients of all batches. Formally, for every batch \(j\), we compute:
+For each setting, we randomly sample five batches from the rollout buffer (`batch0` … `batch4`). From each batch, we compute the **mean gradient vector**, and then compute pairwise cosine similarities:
 
 $$
-\cos(g_i^{(0)}, \bar{g}^{(j)}) 
-= \frac{g_i^{(0)} \cdot \bar{g}^{(j)}}{\lVert g_i^{(0)} \rVert \, \lVert \bar{g}^{(j)} \rVert }.
+\cos(\bar{g}^{(i)}, \bar{g}^{(j)}) 
+= \frac{\bar{g}^{(i)} \cdot \bar{g}^{(j)}}{\lVert \bar{g}^{(i)} \rVert \, \lVert \bar{g}^{(j)} \rVert }.
 $$
 
-This allows us to visualize whether gradients from `batch0` tend to point in the same direction as gradients from other batches.  
+This allows us to visualize whether the mean gradient from one batch tends to point in the same direction as the mean gradient from another batch.  
 
 Importantly, the differences we observe between batches represent the overall variance of the gradient estimator. This includes both the per-sample variance (noise in each $(g_i)$) and the additional covariance created by temporal correlations within trajectories.
 
-In the **long-horizon case (4×32)**, we observe that gradients from `batch0` can be strongly **positively** or **negatively** correlated with gradients from other batches. Negative correlation means that the gradient estimate from one batch points in the *opposite* direction of another batch’s mean—indicating high variance in gradient estimation.  
+In the **long-horizon case (4×256)**, the off-diagonal cells of the cosine similarity heatmap shows that mean gradients from different batches can be strongly **positively** or **negatively** correlated. Negative correlation indicates that the gradient estimate from one batch points in the *opposite* direction of another batch's mean gradient, revealing substantial variance in the gradient estimator.
+In contrast, in the **short-horizon case (16x64)**, while negatively correlated batch mean gradients do occur, they are noticeably less severe than in the long-horizon setting, indicating reduced gradient variance. 
 
-In contrast, in the **short-horizon case (32×4)**, the cosine similarities remain consistent, suggesting lower variability in gradient direction across batches.
 
-This pattern is shown below at a certain step. This represents instance; the behavior may not necessarily generalize to all timesteps.
+
+<div align="center">
+
+  <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/batch_grad_var.png"
+       alt="analysis of variance in gradient for step# 450560"
+       style="width:100%; max-width:700px;"/>
+
+  <div class="explain-box" style="max-width:700px; margin-top:12px;">
+    <strong>Figure:</strong> Cosine similarity between batch mean gradients for short-horizon and long-horizon settings.
+The long-horizon case (4×256) on the right exhibits stronger positive and negative off-diagonal correlations, suggesting increased variability in gradient estimates.
+  </div>
+
+</div>
+
+
 
 <style>
   .fixed-row {
@@ -417,10 +354,10 @@ This pattern is shown below at a certain step. This represents instance; the beh
 </style>
 <style>
   .explain-box {
-    border: 1px solid #aaa;
-    border-left: 4px solid #444;
+    border: 1px solid #ffffffff;
+    border-left: 4px solid #335c67;
     padding: 12px 16px;
-    background: #f7f7f7;
+    background: #b1d5bbac;
     border-radius: 6px;
     margin-top: 1.5rem;
     margin-bottom: 1.5rem;
@@ -452,90 +389,6 @@ This pattern is shown below at a certain step. This represents instance; the beh
   }
 </style>
 
-
-{% assign steps = "100,200,300,400,500,600,700,800,900,1100,1200,1300,1400,1500" | split: "," %}
-
-<label for="stepSlider">Training Step:</label>
-<input type="range" id="stepSlider"
-       min="0" max="{{ steps.size | minus: 1 }}" step="1" value="3"
-       oninput="updateImages(this.value)">
-<span id="stepLabel">{{ steps[0] }}</span>
-
-<div class="column-headers">
-  <div class="header">4vs32</div>
-  <div class="header">32vs4</div>
-</div>
-
-<div class="row-header">Cosine Similarity within Batch</div>
-
-<!-- ALWAYS VISIBLE FIXED ROW -->
-<div class="fixed-row">
-  <img id="fixed0">
-  <img id="fixed1">
-</div>
-
-<div class="row-header">Cosine Similarity across Batches</div>
-
-<!-- SCROLLABLE ROWS (batch1..batch4) -->
-<div class="scroll-window">
-  <div class="scroll-grid">
-    <!-- rows 1 to 4 → 8 images -->
-    {% for i in (0..7) %}
-      <img id="scroll{{ i }}">
-    {% endfor %}
-  </div>
-</div>
-
-
-<div class="explain-box">
-  <!-- <strong>What these plots show:</strong><br><br>
-  Each row compares the policy gradients obtained from different mini-batch
-  pairs during PPO training at a particular training timestep (selected using the
-  slider). The left column (<em>4vs32</em>) contains gradient comparisons from the
-  experiment where batch size = 4 and minibatch size = 32, while the right column
-  (<em>32vs4</em>) contains comparisons from the experiment with batch size = 32 and
-  minibatch size = 4.<br><br>
-  The top row (always visible) shows the diagonal comparison
-  <code>batch0_vs_batch0</code>, which serves as a self-similarity reference.
-  The scrollable section below shows the off-diagonal comparisons
-  <code>batch0_vs_batch[i]</code> for <i>i = 1…4</i>, allowing inspection of how
-  gradients vary across different batch selections. -->
-  Cosine similarity between gradients from batch0 and the mean gradients of other batches.  
-  In the long-horizon setting (4×32) on the left, gradient directions vary substantially across batches—including negative alignment—indicating high gradient variance.  
-  In the short-horizon setting (32×4) on the right, gradients remain consistently aligned, suggesting lower variance.
-</div>
-
-
-<script>
-  const steps = {{ steps | jsonify }};
-  const base = "{{ site.baseurl }}";
-
-  function updateImages(stepIndex) {
-    const step = steps[stepIndex];
-    document.getElementById("stepLabel").textContent = step;
-
-    // --- FIXED ALWAYS-VISIBLE ROW (batch0_vs_batch0) ---
-    document.getElementById("fixed0").src =
-      `${base}/assets/img/2026-04-27-ppo-batch-size/4vs32/update_${step}_batch0_vs_batch0.png`;
-
-    document.getElementById("fixed1").src =
-      `${base}/assets/img/2026-04-27-ppo-batch-size/32vs4/update_${step}_batch0_vs_batch0.png`;
-
-    // --- SCROLLABLE ROWS: batch1..4 ---
-    for (let i = 1; i <= 4; i++) {
-
-      // left column = 4vs32
-      document.getElementById(`scroll${(i-1)*2}`).src =
-        `${base}/assets/img/2026-04-27-ppo-batch-size/4vs32/update_${step}_batch0_vs_batch${i}.png`;
-
-      // right column = 32vs4
-      document.getElementById(`scroll${(i-1)*2 + 1}`).src =
-        `${base}/assets/img/2026-04-27-ppo-batch-size/32vs4/update_${step}_batch0_vs_batch${i}.png`;
-    }
-  }
-
-  document.addEventListener("DOMContentLoaded", () => updateImages(3));
-</script>
 
 
 #### <span style="color:#2ca6a4;">▶</span> Effect of Batch Size on Bias
@@ -577,59 +430,6 @@ This policy drift contributes an additional source of bias, which the clipping m
 
 </div>
 
-<!-- <div align="center">
-
-  <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/Articulation.jpeg"
-       alt="PPO bias-variance and policy update illustration"
-       style="width:100%; max-width:900px;"/>
-
-  <div class="explain-box" style="max-width:900px; margin-top:12px;">
-    <strong>Figure:</strong> Conceptual illustration of policy updates and gradient
-    estimation in PPO. (a) Policy Update:  Updating a policy alters the trajectory distribution. A policy update from iteration <i>i</i> to <i>i+1</i> shifts the probability mass over
-      state–action trajectories, which is what the gradient aims to achieve. (b) Bias and variance: The estimated gradient <i>Ĝ</i> differs from the true gradient <i>G_T</i> due to sampling variability (variance) and systematic estimation error
-      (bias). Both influence how the policy moves from iteration <i>i</i> to <i>i+1</i>. (c) Mini-batch gradients: Mini-batch updates compute gradient estimates from subsets of the full
-      batch. These estimates vary across mini-batches and accumulate over an
-      update epoch, introducing sub-sampling variance and policy-drift-related bias.
-  </div>
-
-</div> -->
-
-
-
-<!-- ### Deconstructing the Gradient and Its Variance
-We’ve set the stage: our goal is to manage the bias (from short rollouts $T$) and the variance (from correlation, or high $T$). Now, let’s look at the PPO math to see exactly where the variance comes from.
-
-**PPO Gradient Equation**: The core of PPO's objective is to maximize the expected advantage, weighted by the probability ratio. The PPO objective (without the clipping mechanism initially) is:
-
-$$L = \frac{1}{N T} \sum_{(s_t, a_t) \in \mathcal{D}}
-\underbrace{\frac{\pi_\theta(a_t \mid s_t)}{\pi_{\theta_{\text{old}}}(a_t \mid s_t)}}_{r} \,
-A^{\theta_{\text{old}}}(s_t, a_t)$$
-
-(To keep things simple, we assume using entire collected batch $\mathcal{D}$ for a single policy update, ignoring mini-batches and hence clipping).
-
-Where:
-
-- $N \times T$ is our Total Batch Size.
-- $r$ is the Probability Ratio, comparing the new policy $\pi_\theta$ to the old $\pi_{\theta_{\text{old}}}$.
-- $A^{\theta_{\text{old}}}(s_t, a_t)$ is the Advantage Estimate calculated on the collected data.
-
-Taking the gradient of this loss function gives us our gradient estimate, $G_B$:
-
-$$G_B = \nabla_\theta L = \frac{1}{N T} \sum_{(s_t, a_t) \in \mathcal{D}}
-\nabla_\theta \left[ r \cdot A^{\theta_{\text{old}}}(s_t, a_t) \right]$$
-
-Since the advantage $A$ is constant with respect to the new policy $\theta$, and knowing that $\nabla_\theta r = r \cdot \nabla_\theta \log \pi_\theta(a_t \mid s_t)$, the gradient simplifies to:
-
-$$\nabla_\theta L = \frac{1}{N T} \sum_{(s_t, a_t) \in \mathcal{D}}
-r \, A^{\theta_{\text{old}}}(s_t, a_t) \, \nabla_\theta \log \pi_\theta(a_t \mid s_t)$$
-
-For the initial full-batch gradient calculation, the old and new policies are very close, so $r \approx 1$. This gives us the simplest form of the gradient estimate:
-
-$$G_B = \frac{1}{N T} \sum_{(s_t, a_t) \in \mathcal{D}} \underbrace{ A^{\theta_{\text{old}}}(s_t, a_t) \, \nabla_\theta \log \pi_\theta(a_t \mid s_t) }_{g_i}$$
-
-This tells us something fundamental: Our policy gradient estimate $G_B$ is simply the mean of the individual policy gradients ($g_i$) calculated for every single step in our batch. -->
-
-
 
 ### What role does GAE-$\lambda$ play here?
 
@@ -647,16 +447,40 @@ which incorporates the full sequence of rewards until the end of the episode. Th
 
 $\lambda$ thus controls how much we rely on immediate rewards vs long-term returns. Now, the advantages are computed for the collected batch of size $NT$, and "how far into the future" is limited by $T$, the rollout steps. When $T$ is much smaller than the episode length (especially for recurrent environments <d-cite key="schulman2017ppo"></d-cite>), the advantage estimates will be truncated, effectively creating the same effect as a lower $\lambda$. For $T > $ episode length, the advantage estimates is unaffected. 
 
-<!-- #### Where does the bias and variance from GAE appear in the gradient variance decomposition?
-$$G_B = \frac{1}{N T} \sum_{(s_t, a_t) \in \mathcal{D}} A^{\theta_{\text{old}}}(s_t, a_t) \, \nabla_\theta \log \pi_\theta(a_t \mid s_t)$$ -->
+Based on this reasoning, one might expect the impact of $\lambda$ on gradient variance to depend strongly on the rollout horizon $T$. However, empirical results do not show a clean separation between short-horizon and long-horizon settings. Instead, varying $\lambda$ produces qualitatively similar effects across both regimes.
+
+In particular, changing $\lambda$ does not eliminate temporal correlation between gradients sampled along a trajectory. Even for $\lambda = 0$, gradients remain correlated across time due to shared state visitation and common policy. What $\lambda$ primarily influences is directional coherence: as $\lambda$ increases, per-sample gradient directions become more variable, which weakens alignment within a batch.
+
+Across both short-horizon and long-horizon settings, the following patterns emerge:
+
+- Temporal correlation between gradients persists for all values of $\lambda$.
+
+- Increasing $\lambda$ increases directional variability in per-sample gradients.
+
+- As a consequence, batch mean gradients become less directionally aligned, even though individual gradient samples remain temporally correlated.
+
+<div align="center">
+
+<img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/lambda_similarity.png" alt="lambda similarity" style="width:100%; max-width:700px;"/>
+
+<div class="explain-box" style="max-width:700px; margin-top:12px;"> <strong>Figure:</strong> Within-trajectory and across-trajectory cosine similarity for the 4×256 setup. Even for $\lambda = 0$ and $\lambda = 1$, gradients remain correlated at large temporal lags (here, $k = 40$). </div> </div> <div style="height:2rem;"></div> <div align="center">
+
+<img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/lambda_mean_similarity.png" alt="lambda mean similarity" style="width:100%; max-width:700px;"/>
+
+<div class="explain-box" style="max-width:700px; margin-top:12px;"> <strong>Figure:</strong> Cosine similarity between each per-sample gradient and the batch mean gradient, computed as $ \cos(g_i, \bar{g}^{(i)}) = \frac{g_i \cdot \bar{g}^{(i)}}{\lVert g_i \rVert \, \lVert \bar{g}^{(i)} \rVert}. $ As $\lambda$ increases, the distribution becomes more concentrated around zero, indicating increased variability in per-sample gradient directions. </div> </div>
+
+Varying the GAE parameter $\lambda$ therefore primarily affects the directional variability of per-sample gradients within a batch rather than removing temporal correlation altogether. For larger values of $\lambda$, gradients tend to point in more diverse directions, leading to partial cancellation when averaged. As a result, batch mean gradients may appear less extreme and, in some cases, more consistently aligned across batches.
+
+For smaller values of $\lambda$, per-sample gradients are often more directionally consistent within a batch. This can produce strongly aligned batch mean gradients, which may result in either low or high batch-to-batch variance depending on the rollout and trajectory correlations.
+
+<div align="center">
+
+<img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/batch_mean_lambda.png" alt="batch mean gradient" style="width:100%; max-width:700px;"/>
+
+<div class="explain-box" style="max-width:700px; margin-top:12px;"> <strong>Figure:</strong> Pairwise cosine similarity between batch mean gradients. For $\lambda = 0$, batch-to-batch variance can be either low or high depending on the rollout. For larger $\lambda$, cancellation within batches can reduce extreme batch-to-batch variance. </div> </div>
 
 
-<!-- By tuning $\lambda$, we can control the bias-variance trade-off in advantage estimation. A lower $\lambda$ (closer to 0) uses more immediate rewards, reducing variance but increasing bias. A higher $\lambda$ (closer to 1) incorporates longer-term rewards, which can increase variance due to the correlation of returns over time. -->
+### Wrapping-up
+This post examined how the rollout length $T$ and the number of parallel environments $N$ affects the variance of gradient estimates. Longer rollouts introduce strong temporal correlations between gradients computed from neighboring time steps, which can substantially increase variance despite a fixed total batch size. Increasing the number of parallel environments instead reduces these correlations by collecting more independent trajectories.
 
-
-
-<!-- ## Final Thoughts -->
-<!-- In this post, we explored how the structure of the batch size in PPO—specifically the trade-off between the number of parallel environments ($N$) and the number of steps per environment ($T$)—affects the variance of policy gradient estimates. -->
-<!-- 
-#### Note on Compute vs. Storage Constraints
-It is to note that, while one may think that increasing num_envs is always better increasing num_rollouts, it is note that (a) if given constant storage, there is 1:1 relation in replacing additional rollout data with additional env data, however (b) if compute is assumed constant, then the 1:1 relation may not hold. In particular, the parallel data collection across n_envs is enabled by simulation and the compute constraint may limit how much n_env a simulation can efficiently process in parallel.  -->
+In practice, PPO implementations further mitigate correlation effects by shuffling the rollout buffer and performing updates using mini-batches. This randomization breaks up temporally adjacent samples and partially reduces gradient correlation. Nevertheless, the choice of $N$ and $T$ directly influences the stability of the learning dynamics.
