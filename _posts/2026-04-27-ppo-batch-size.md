@@ -1,6 +1,6 @@
 ---
 layout: distill
-title: "The Trade-off Between Parallel Environments and Steps in PPO"
+title: "Effect of Parallel Environments and Rollout Steps in PPO"
 description: This blog post explores batch size in PPO-what happens when we increase the number of parallel environments versus the number of rollout steps, while keeping the total samples per update fixed. We discuss how this affects bias and variance in gradient estimation.
 date: 2026-11-13
 future: true
