@@ -14,7 +14,7 @@ mermaid:
 
 # Anonymize when submitting
 authors:
-  - name: Anonymous
+  - name: Teerthaa Parakh
 
 # must be the exact same name as your blogpost
 bibliography: 2026-04-27-ppo-batch-size.bib
