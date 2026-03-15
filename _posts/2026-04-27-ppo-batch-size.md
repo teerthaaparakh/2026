@@ -66,7 +66,7 @@ Does it matter if we reach a batch size of 2,048 by running 2 environments for 1
 
 Recent work has shown that data collection strategy is not a trivial detail. Multiple studies—including <d-cite key="mayor2025the"></d-cite> and <d-cite key="sapg2024"></d-cite>—highlight that how we distribute experience across environments and rollout lengths can meaningfully influence the stability and effectiveness of on-policy RL methods like PPO. As simulation becomes faster and large-scale parallelism more accessible, understanding these choices is becoming increasingly important.
 
-In this post, we'll dig into why the structure of the batch matters at all. In particular, we'll look at how increasing $N$ and increasing $T$ affect the bias and variance of PPO’s gradient estimates, theoretically and empirically. Code for the empirical analysis is provided [here](https://drive.google.com/drive/folders/1z8w_T0Ree9XwfBjK6yvL3zk4SlJZ_flG?usp=sharing)
+In this post, we'll dig into why the structure of the batch matters at all. In particular, we'll look at how increasing $N$ and increasing $T$ affect the bias and variance of PPO’s gradient estimates, theoretically and empirically. Code for the analysis is provided [here](https://github.com/teerthaaparakh/PPO-Batch-Size)
 
 ### Clarifying Terminology: Batch vs. Mini-Batch
 When reading PPO implementations across different libraries, you may notice that the term batch size is used in slightly different ways. To keep things consistent in this post, we’ll use the following terminology as is used in the original PPO paper <d-cite key="schulman2017ppo"></d-cite>:
