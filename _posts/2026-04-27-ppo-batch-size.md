@@ -2,7 +2,7 @@
 layout: distill
 title: "Effect of Parallel Environments and Rollout Steps in PPO"
 description: This blog post explores batch size in PPO-what happens when we increase the number of parallel environments versus the number of rollout steps, while keeping the total samples per update fixed. We discuss how this affects bias and variance in gradient estimation.
-date: 2026-11-13
+date: 2026-04-22
 future: true
 htmlwidgets: true
 hidden: true
@@ -15,6 +15,8 @@ mermaid:
 # Anonymize when submitting
 authors:
   - name: Teerthaa Parakh
+  - affiliations:
+      name: Georgia Institute of Technology
 
 # must be the exact same name as your blogpost
 bibliography: 2026-04-27-ppo-batch-size.bib
