@@ -2,7 +2,7 @@
 layout: distill
 title: "Effect of Parallel Environments and Rollout Steps in PPO"
 description: This blog post explores batch size in PPO-what happens when we increase the number of parallel environments versus the number of rollout steps, while keeping the total samples per update fixed. We discuss how this affects bias and variance in gradient estimation.
-date: 2026-04-22
+date: 2026-04-27
 future: true
 htmlwidgets: true
 hidden: true
@@ -15,7 +15,7 @@ mermaid:
 # Anonymize when submitting
 authors:
   - name: Teerthaa Parakh
-  - affiliations:
+  - affiliations: 
       name: Georgia Institute of Technology
 
 # must be the exact same name as your blogpost
@@ -205,12 +205,60 @@ Overall, these noise sources appear in the gradient estimator in two ways:
 
 #### <span style="color:#2ca6a4;">▶</span> Effect of Batch Size on Variance
 
-The variance of a mean is critical because it tells us how noisy $G_B$ is. High variance means we can't trust the update.
+<!-- The variance of a mean is critical because it tells us how noisy $G_B$ is. High variance means we can't trust the update.
 
 The total variance of our gradient estimate $G_B$ can be mathematically decomposed into two parts:
 
-$$\text{Var}(G_B) = \text{Var}\Bigg(\frac{1}{N T} \sum_i g_i \Bigg) = \color{blue}{\underbrace{\frac{1}{(N T)^2} \sum_i \text{Var}(g_i)}_{\text{Term 1: Individual Variance}}} + \color{brown}{\underbrace{\frac{1}{(N T)^2} \sum_{i \neq j} \text{Cov}(g_i, g_j)}_{\text{Term 2: Covariance (Correlation)}}}$$
+$$\text{Var}(G_B) = \text{Var}\Bigg(\frac{1}{N T} \sum_i g_i \Bigg) = \color{blue}{\underbrace{\frac{1}{(N T)^2} \sum_i \text{Var}(g_i)}_{\text{Term 1: Individual Variance}}} + \color{brown}{\underbrace{\frac{1}{(N T)^2} \sum_{i \neq j} \text{Cov}(g_i, g_j)}_{\text{Term 2: Covariance (Correlation)}}}$$ -->
 
+
+The variance of the mean gradient is important because it tells us how noisy the update $G_B$ is. A high variance in $G_B$ means that it is an unreliable estimate of the true gradient. Since gradients are vectors, this variance is described by the covariance matrix as follows:
+
+$$
+\mathrm{Cov}(G_B)
+=
+\mathrm{Cov}\left(
+\frac{1}{NT} \sum_i \bar{g}_i
+\right)
+$$
+
+Expanding the covariance of the mean gives
+
+$$
+\mathrm{Cov}(G_B)
+=
+\frac{1}{(NT)^2}
+\sum_i \mathrm{Cov}(\bar{g}_i)
++
+\frac{1}{(NT)^2}
+\sum_{i \ne j}
+\mathrm{Cov}(\bar{g}_i, \bar{g}_j).
+$$
+
+Because the covariance matrix is high-dimensional, we use its trace as a scalar measure of the noise in the estimate, following <d-cite key="mccandlish2018empirical"></d-cite>. Other scalarizations, such as the Frobenius norm, can be used <d-cite key="wen2020empirical"></d-cite>.
+
+Taking the trace of the covariance expression yields the scalar variance:
+
+$$
+\mathrm{Var}(G_B)
+=
+\mathrm{Tr}\big(\mathrm{Cov}(G_B)\big)
+=
+\color{blue}{
+\underbrace{
+\frac{1}{(NT)^2}
+\sum_i \mathrm{Tr}\big(\mathrm{Cov}(\bar{g}_i)\big)
+}_{\text{Term 1: Individual Variance}}
+}
++
+\color{brown}{
+\underbrace{
+\frac{1}{(NT)^2}
+\sum_{i \ne j}
+\mathrm{Tr}\big(\mathrm{Cov}(\bar{g}_i,\bar{g}_j)\big)
+}_{\text{Term 2: Covariance (Correlation)}}
+}.
+$$
 
 This decomposition connects directly to the noise sources discussed earlier and holds the key to the $N$ vs. $T$ trade-off:
 
