@@ -235,9 +235,7 @@ $$
 \mathrm{Cov}(\bar{g}_i, \bar{g}_j).
 $$
 
-Because the covariance matrix is high-dimensional, we use its trace as a scalar measure of the noise in the estimate, following <d-cite key="mccandlish2018empirical"></d-cite>. Other scalarizations, such as the Frobenius norm, can be used <d-cite key="wen2020empirical"></d-cite>.
-
-Taking the trace of the covariance expression yields the scalar variance:
+Because the covariance matrix is high-dimensional, we use its trace as a scalar measure of the noise in the estimate, following <d-cite key="mccandlish2018empirical"></d-cite>. Other scalarizations, such as the Frobenius norm, can be used <d-cite key="wen2020empirical"></d-cite>. Taking the trace of the covariance expression yields the scalar variance:
 
 $$
 \mathrm{Var}(G_B)
@@ -256,7 +254,7 @@ $$
 \frac{1}{(NT)^2}
 \sum_{i \ne j}
 \mathrm{Tr}\big(\mathrm{Cov}(\bar{g}_i,\bar{g}_j)\big)
-}_{\text{Term 2: Covariance (Correlation)}}
+}_{\text{Term 2: Covariance (Temporal Correlation)}}
 }.
 $$
 
@@ -268,9 +266,15 @@ This decomposition connects directly to the noise sources discussed earlier and 
   In practice, this variability arises from both the stochastic policy $\pi_\theta(a_t \mid s_t)$ as well as noise in the advantage estimates,
   since each $g_i$ is scaled by a noisy advantage value. Importantly, higher individual variance does not necessarily translate into higher variance of the batch-averaged gradient, as gradient cancellation effects and covariance between samples also play a crucial role.
 
-- $\color{brown}{\text{Term 2: Covariance (The Correlation Problem)}}$
+- $\color{brown}{\text{Term 2: Covariance (Temporal Correlation Term)}}$
 
-  This is the term that makes RL different from supervised learning. The covariance $\mathrm{Cov}(g_i, g_j)$ need not be zero because $g_i$ and $g_{j}$ may originate from the same episode. Since states within a single episode are temporally correlated, the policy gradients computed from those states are also correlated.
+  <!-- This is the term that makes RL different from supervised learning. The covariance $\mathrm{Cov}(g_i, g_j)$ need not be zero because $g_i$ and $g_{j}$ may originate from the same episode. Since states within a single episode are temporally correlated, the policy gradients computed from those states are also correlated.
+
+  This term captures the dependence between gradient samples.  
+  Since states within a trajectory are temporally correlated, gradients computed from those states are not independent, resulting in non-zero covariance between gradient samples.Since states within a trajectory are temporally correlated, gradients computed from those states are not independent, resulting in non-zero covariance between gradient samples. -->
+  This term captures the dependence between gradient samples. Since states within a single episode are temporally correlated, gradients computed from those states are not independent. As a result, the covariance $\mathrm{Cov}(\bar{g}_i,\bar{g}_j)$ need not be zero, and therefore the corresponding scalar term $\mathrm{Tr}\big(\mathrm{Cov}(\bar{g}_i,\bar{g}_j)\big)$ can contribute to the variance.
+ 
+  
 
 **Impact:**  
 When $T$ is **large**, the batch contains many highly correlated steps, leading to either large positive or large negative covariance term. This effectively reduces the *effective sample size* of the batch. This $\color{brown}{\text{increases the sampling noise}}$ because the effective sample size has been reduced. Therefore, a long horizon $T$ can keep $\mathrm{Var}(G_B)$ high. In addition, when $T$ is large, the $\color{blue}{\text{individual variance term also increases}}$, since advantage estimation has high variance over long horizons. (The role of $\lambda$ in GAE will be discussed later.)
@@ -289,31 +293,145 @@ which produces a total batch size of
 
 In the pendulum environment, episodes do not terminate due to task completion or failure; instead, they are truncated after a fixed horizon of 200 time steps <d-cite key="towers2024gymnasium"></d-cite>. Consequently, all trajectories have a fixed length of 200 steps.
 
+<!-- We measure correlation between gradients using the cosine as follows:
 
-To quantify the correlation between gradients computed from two data points, let us use the cosine similarity between gradients $g_i$ and $g_j$, defined as:
+$$
+\mathbb{E}\!\left[
+\frac{(g_i-\bar g)^\top (g_j-\bar g)}
+{\|g_i-\bar g\| \, \|g_j-\bar g\|}
+\right],
+$$
+
+where $\bar g$ is the mean gradient within the batch.
+
+<details>
+<summary><b>Note: relation to classical autocorrelation and motivation</b></summary>
+
+<br>
+
+**Standard correlation / autocorrelation**
+
+The classical lag-$k$ autocorrelation of a vector-valued sequence is defined as
+
+$$
+
+\frac{\mathbb{E}\big[(g_i-\bar g)^\top (g_{j}-\bar g)\big]}
+{\mathbb{E}\|g_t-\mu\|^2},
+$$
+
+
+This definition is closer to autocorrelation used in time-series analysis and effective sample size estimation.
+
+<br>
+
+**Empirical autocorrelation**
+
+The figure below shows the estimated lag correlation using this definition.
+
+![Lag correlation](lag_corr.png)
+
+We observe that the mean autocorrelation is close to zero for all lags.
+However, within-trajectory estimates exhibit larger magnitude and higher
+variability at small lags compared to the across-trajectory baseline,
+and gradually approach the baseline as the lag increases.
+
+This indicates the presence of short-range dependence within trajectories, even though the signed autocorrelation remains small due to cancellation of positive and negative inner products in high-dimensional gradients. Hence the covariance-based autocorrelation can be close to zero even when gradients are strongly aligned. To better capture directional dependence, we use the cosine correlation.
+
+
+$$
+\mathbb{E}\!\left[
+\frac{(g_i-\bar g)^\top (g_j-\bar g)}
+{\|g_i-\bar g\| \, \|g_j-\bar g\|}
+\right],
+$$
+
+which normalizes each pair individually and therefore reflects
+gradient alignment.
+
+This definition is also applicable when comparing gradients sampled
+from different trajectories, where a classical lag-based autocorrelation
+is not defined.
+
+</details> -->
+
+
+We measure correlation between gradients using the cosine correlation
+
+$$
+\mathbb{E}\!\left[
+\frac{(g_i-\bar g)^\top (g_j-\bar g)}
+{\|g_i-\bar g\| \, \|g_j-\bar g\|}
+\right],
+$$
+
+where $\bar g$ is the mean gradient within the batch.
+This definition measures directional similarity between two gradients.
+
+<details>
+<summary><b>Note: relation to covariance-based correlation</b></summary>
+
+<br>
+
+<b>Covariance-based correlation</b>
+
+A standard covariance-based correlation between two gradients is
+
+$$
+\frac{
+\mathbb{E}\big[(g_i-\mu)^\top (g_j-\mu)\big]
+}{
+\mathbb{E}\|g-\mu\|^2
+}.
+$$
+
+When $g_i$ and $g_j$ come from the same trajectory with lag $k$,
+this corresponds to the usual lag-$k$ autocorrelation used in
+time-series analysis and effective sample size estimation.
+
+Using the definition above, we compute the correlation
+between gradients at different lags and plot the result below.
+The plotted curve is averaged over 20 training checkpoints, and the shaded
+region shows variability across checkpoints.
+
+<img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/lag_correlation.png"
+       alt=""
+       style="width:100%; max-width:700px;"/>
+
+The covariance-based correlation is close to zero for all lags,
+although within-trajectory estimates show larger variation at small lags
+and approach the across-trajectory baseline as the lag increases.
+This suggests short-range dependence, but covariance-based correlation
+averages signed inner products, so positive and negative alignments can
+cancel in high-dimensional gradients.  
+We therefore use the cosine correlation above, which normalizes each pair
+individually and better captures directional alignment between gradients.
+
+</details>
+
+<!-- To quantify the correlation between gradients computed from two data points, let us use the cosine similarity between gradients $g_i$ and $g_j$, defined as:
 $$
   \cos(g_i, g_j)
   = \frac{g_i \cdot g_j}
         {\lVert g_i \rVert \, \lVert g_j \rVert }.
-$$
+$$ -->
 
 At a certain training update, we analyze gradient correlation at two levels:
 For a particular step in training, we compute following:
-- **Within-trajectory correlation**: cosine similarity between gradients $g_t$ and $g_{t+k}$ sampled from the same trajectory at temporal lag $k$.
-- **Across-trajectory correlation:** cosine similarity between gradients sampled from two different trajectories, each selected at random.
-For within trajectory cosine similarity we test it for different values of lag k.
+- **Within-trajectory correlation**: correlation between gradients $g_t$ and $g_{t+k}$ sampled from the same trajectory at temporal lag $k$.
+- **Across-trajectory correlation:** correlation between gradients sampled from two different trajectories, each selected at random.
+For within trajectory correlation we test it for different values of lag k.
 
 Gradients within the same trajectory are expected to be more strongly correlated, while gradients sampled across trajectories provide a baseline that serves as approximately independent samples.
 
-The below figure compares the cosine similarity of gradients within a trajectory to that of gradients across different trajectories at two different points during training.
+The below figure compares the correlation of gradients within a trajectory to that of gradients across different trajectories at two different points during training.
 <div align="center">
 
-  <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/gradient_similarity_399360.png"
-       alt="gradient similarity distribution for step# 399360"
+  <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/gradient_corr_399360.png"
+       alt="gradient correlation distribution for step# 399360"
        style="width:100%; max-width:700px;"/>
 
   <div class="explain-box" style="max-width:700px; margin-top:12px;">
-    <strong>Figure:</strong> Comparison of within-trajectory and across-trajectory gradient cosine similarity at global step 399360 for lag values \(k = 1, 3, 5, 7\).
+    <strong>Figure:</strong> Comparison of within-trajectory and across-trajectory gradient correlation at global step 399360 for lag values \(k = 1, 3, 5, 7\).
   </div>
 
 </div>
@@ -323,18 +441,18 @@ The below figure compares the cosine similarity of gradients within a trajectory
 
 <div align="center">
 
-  <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/gradient_similarity_450560.png"
-       alt="gradient similarity distribution for step# 450560"
+  <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/gradient_corr_450560.png"
+       alt="gradient correlation distribution for step# 450560"
        style="width:100%; max-width:700px;"/>
 
   <div class="explain-box" style="max-width:700px; margin-top:12px;">
-    <strong>Figure:</strong> Comparison of within-trajectory and across-trajectory gradient cosine similarity at global step 450560 for lag values \(k = 1, 5, 10, 40\).
+    <strong>Figure:</strong> Comparison of within-trajectory and across-trajectory gradient correlation at global step 450560 for lag values \(k = 1, 5, 10, 40\).
   </div>
 
 </div>
 
 
-The strong correlation we observed within a trajectory suggests that <code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">num_steps</code> play a significant role in gradient variance. To study this effect more systematically, let us analyze two settings: `num_envs = 4`, `num_steps = 256` (long trajectories) and `num_envs = 16`, `num_steps = 64` (short trajectories). Let us focus on training step 450560 now, as the correlation effects remain visible even at large lags (i.e. $k$=40).
+The higher correlation observed within trajectories suggests that <code style="background:#f6f2f8ff; padding:2px 4px; border-radius:4px;">num_steps</code> can influence the diversity of gradient directions within a batch. To study this effect more systematically, let us analyze two settings: `num_envs = 4`, `num_steps = 256` (long trajectories) and `num_envs = 16`, `num_steps = 64` (short trajectories). Let us focus on training step 450560 now, as the correlation effects remain visible even at large lags (i.e. $k$=40).
 
 For each setting, we randomly sample five batches from the rollout buffer (`batch0` … `batch4`). From each batch, we compute the **mean gradient vector**, and then compute pairwise cosine similarities:
 
@@ -505,19 +623,19 @@ Based on this reasoning, one might expect the impact of $\lambda$ on gradient va
 
 In particular, changing $\lambda$ does not eliminate temporal correlation between gradients sampled along a trajectory. Even for $\lambda = 0$, gradients remain correlated across time due to shared state visitation and common policy. What $\lambda$ primarily influences is directional coherence: as $\lambda$ increases, per-sample gradient directions become more variable, which weakens alignment within a batch.
 
-Across both short-horizon and long-horizon settings, the following patterns emerge:
+<!-- Across both short-horizon and long-horizon settings, the following patterns emerge:
 
 - Temporal correlation between gradients persists for all values of $\lambda$.
 
 - Increasing $\lambda$ increases directional variability in per-sample gradients.
 
-- As a consequence, batch mean gradients become less directionally aligned, even though individual gradient samples remain temporally correlated.
+- As a consequence, batch mean gradients become less directionally aligned, even though individual gradient samples remain temporally correlated. -->
 
 <div align="center">
 
-<img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/lambda_similarity.png" alt="lambda similarity" style="width:100%; max-width:700px;"/>
+<img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/lambda_corr.png" alt="lambda correlation" style="width:100%; max-width:700px;"/>
 
-<div class="explain-box" style="max-width:700px; margin-top:12px;"> <strong>Figure:</strong> Within-trajectory and across-trajectory cosine similarity for the 4×256 setup. Even for $\lambda = 0$ and $\lambda = 1$, gradients remain correlated at large temporal lags (here, $k = 40$). </div> </div> <div style="height:2rem;"></div> <div align="center">
+<div class="explain-box" style="max-width:700px; margin-top:12px;"> <strong>Figure:</strong> Within-trajectory and across-trajectory  correlation for the 4×256 setup. Even for $\lambda = 0$ and $\lambda = 1$, gradients remain correlated at large temporal lags (here, $k = 40$). </div> </div> <div style="height:2rem;"></div> <div align="center">
 
 <img src="{{ site.baseurl }}/assets/img/2026-04-27-ppo-batch-size/lambda_mean_similarity.png" alt="lambda mean similarity" style="width:100%; max-width:700px;"/>
 
