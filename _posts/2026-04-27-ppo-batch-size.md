@@ -15,7 +15,7 @@ mermaid:
 # Anonymize when submitting
 authors:
   - name: Teerthaa Parakh
-  - affiliations: 
+    affiliations: 
       name: Georgia Institute of Technology
 
 # must be the exact same name as your blogpost
